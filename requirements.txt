@@ -6,3 +6,4 @@ pydantic~=2.8.2
 langchain~=0.3.13
 langgraph~=0.2.60
 langchain-openai~=0.2.13
+load_dotenv
