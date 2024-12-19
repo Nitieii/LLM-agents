@@ -17,9 +17,9 @@ from load_dotenv import load_dotenv
 
 load_dotenv()
 
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
-TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TAVILY_API_KEY = st.secrets["TAVILY_API_KEY"]
+TOGETHER_API_KEY = st.secrets["TOGETHER_API_KEY"]
+OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 
 
 class StreamHandler(BaseCallbackHandler):
