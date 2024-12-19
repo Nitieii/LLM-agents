@@ -13,24 +13,31 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_openai import ChatOpenAI
 
-TAVILY_API_KEY = os.environ["TAVILY_API_KEY"] = "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"
-TOGETHER_API_KEY = os.environ["TOGETHER_API_KEY"] = "7f3321b1df0149d90e75aea860036ea257b1480333c56e02d4335846ce010107"
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"] = "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"
+from load_dotenv import load_dotenv
+
+load_dotenv()
+
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+TOGETHER_API_KEY = os.getenv("TOGETHER_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
 
 class StreamHandler(BaseCallbackHandler):
     def __init__(self, container, initial_text=""):
         self.container = container
         self.text = initial_text
         self.placeholder = container.empty()
-        
+
     def on_llm_new_token(self, token: str, **kwargs) -> None:
         self.text += token
         self.placeholder.markdown(self.text + "▌")
+
 
 class State(TypedDict):
     """State management for the chat system"""
     messages: Annotated[List[BaseMessage], add_messages]
     ask_human: bool
+
 
 class RequestAssistance(BaseModel):
     """Model for requesting human expert assistance"""
@@ -46,6 +53,7 @@ class RequestAssistance(BaseModel):
                 "context": "Involves multiple jurisdictions"
             }]
         }
+
 
 # Enhanced tools setup
 search_web = TavilySearchResults(
@@ -121,16 +129,17 @@ Trước khi đưa ra phản hồi cuối cùng, hãy kiểm tra:
 6. Đã sử dụng đủ ít nhất 10 nguồn khác nhau chưa?
 """
 
+
 def chatbot(state: State) -> dict:
     """Primary chatbot function that processes user input and generates responses"""
     try:
         messages = [{"role": "system", "content": system_prompt}] + state["messages"]
         response = llm_with_tools.invoke(messages)
         ask_human = False
-        
+
         if response.tool_calls and response.tool_calls[0]["name"] == RequestAssistance.__name__:
             ask_human = True
-            
+
         return {
             "messages": [response],
             "ask_human": ask_human
@@ -142,6 +151,7 @@ def chatbot(state: State) -> dict:
             "ask_human": True
         }
 
+
 def create_response(response: str, ai_message: AIMessage) -> ToolMessage:
     """Creates a formatted tool message response"""
     return ToolMessage(
@@ -149,6 +159,7 @@ def create_response(response: str, ai_message: AIMessage) -> ToolMessage:
         tool_call_id=ai_message.tool_calls[0]["id"],
         name=ai_message.tool_calls[0]["name"]
     )
+
 
 def human_node(state: State) -> dict:
     """Handles human expert intervention requests"""
@@ -165,17 +176,20 @@ def human_node(state: State) -> dict:
         "ask_human": False
     }
 
+
 # Graph construction
 graph_builder = StateGraph(State)
 graph_builder.add_node("chatbot", chatbot)
 graph_builder.add_node("tools", ToolNode(tools=[search_web]))
 graph_builder.add_node("human", human_node)
 
+
 def select_next_node(state: State) -> str:
     """Determines the next node in the conversation flow"""
     if state["ask_human"]:
         return "human"
     return tools_condition(state)
+
 
 # Graph configuration
 graph_builder.add_conditional_edges(
@@ -218,13 +232,13 @@ user_input = st.text_input(
 if st.button("Ask", key="ask_button"):
     if user_input:
         st.empty()
-        
+
         chat_box = st.container()
         stream_handler = StreamHandler(chat_box)
-        
+
         # Update llm with stream handler for this request
         llm.callbacks = [stream_handler]
-        
+
         with st.spinner("Researching..."):
             try:
                 config = {"configurable": {"thread_id": str(hash(user_input))}}
@@ -236,7 +250,7 @@ if st.button("Ask", key="ask_button"):
                     config,
                     stream_mode="values"
                 )
-                
+
                 # Add user message to chat history
                 st.session_state.chat_history.append({
                     "role": "user",
@@ -244,17 +258,17 @@ if st.button("Ask", key="ask_button"):
                     "timestamp": st.session_state.get("_timestamp", 0)
                 })
                 st.write(f"**You:** {user_input}")
-                
+
                 has_response = False
                 response_content = ""
-                
+
                 for event in events:
                     if "messages" in event:
                         for message in event["messages"]:
                             if hasattr(message, "content") and isinstance(message, AIMessage):
                                 response_content = message.content
                                 has_response = True
-                
+
                 if has_response:
                     st.session_state.chat_history.append({
                         "role": "assistant",
@@ -263,7 +277,7 @@ if st.button("Ask", key="ask_button"):
                     })
                 else:
                     st.error("No response received. Please try again.")
-                    
+
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
                 st.warning("Please try rephrasing your question or try again later.")
